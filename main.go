@@ -5,63 +5,83 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"text/tabwriter"
 	"time"
+
+	"github.com/ONSdigital/log.go/log"
 )
 
 const hhMMFormat = "1504"
 
-var startTime time.Time
-var timeWorked time.Time
+var (
+	startTime   time.Time
+	timeWorked  time.Time
+	initialized = false
+	w *tabwriter.Writer
+)
+
+func Init() {
+	log.Namespace = "go-flexi"
+}
 
 func main() {
 	sc := bufio.NewScanner(os.Stdin)
 
-	initialized := false
-	fmt.Println("enter start time - format hh:mm")
+	w = tabwriter.NewWriter(os.Stdout, 0, 0, 1, ' ', tabwriter.TabIndent|tabwriter.Debug)
+	fmt.Fprintln(w, "Enter times\tFormat <hh:mm hh:mm>, <hh:mm hh:mm>, ... <hh:mm hh:mm>")
+	fmt.Fprintln(w, fmt.Sprintf("Example \t %q", "0800 0900, 1025 1100, 1200 1650"))
+	fmt.Println()
+	w.Flush()
 
 	for sc.Scan() {
-		in := sc.Text()
+		input := sc.Text()
 
-		if in == "q" {
+		if input == "q" {
 			quit()
 		}
 
-		if in == "done" {
-			finish(timeWorked, startTime)
+		if input == "done" {
+			fmt.Println()
+			fmt.Fprintln(w, fmt.Sprintf("Total time \t %v", timeWorked.Sub(startTime)))
+			w.Flush()
+			fmt.Println()
+			quit()
 		}
 
-		start, end := parseInput(in)
-
-		if !initialized {
-			startTime = start
-			timeWorked = start
-			initialized = true
-		}
-
-		incrementTotal(start, end)
+		process(input)
 	}
 }
 
-func parseInput(input string) (time.Time, time.Time) {
-	times := strings.Split(input, ":")
+func process(input string) {
+	periods := strings.Split(input, ",")
 
-	fmt.Printf("times: %v\n", times)
+	var totalMins float64 = 0
+	fmt.Fprintln(w, "Period\t Duration (minutes)")
 
-	startStr := strings.TrimSpace(times[0])
-	endStr := strings.TrimSpace(times[1])
+	for _, p := range periods {
+		p := strings.TrimSpace(p)
 
-	return parseTime(startStr), parseTime(endStr)
-}
+		times := strings.Split(p, " ")
+		startStr := strings.TrimSpace(times[0])
+		endStr := strings.TrimSpace(times[1])
 
-func incrementTotal(start time.Time, end time.Time) {
-	diffMins := end.Sub(start).Minutes()
-	fmt.Printf("diffMins added %f\n", diffMins)
-	timeWorked = timeWorked.Add(time.Minute * time.Duration(diffMins))
-}
+		start := parseTime(startStr)
+		end := parseTime(endStr)
 
-func finish(end time.Time, start time.Time) {
-	fmt.Println(end.Sub(start))
-	quit()
+		if !initialized {
+			startTime = start
+			timeWorked = end
+			initialized = true
+		}
+
+		mins := end.Sub(start).Minutes()
+		fmt.Fprintln(w, fmt.Sprintf("%s - %s\t %f", startStr, endStr, mins))
+
+		totalMins += mins
+	}
+
+	timeWorked = startTime.Add(time.Minute * time.Duration(totalMins))
+
 }
 
 func parseTime(val string) time.Time {
@@ -74,6 +94,5 @@ func parseTime(val string) time.Time {
 }
 
 func quit() {
-	fmt.Println("goodbye")
 	os.Exit(0)
 }
