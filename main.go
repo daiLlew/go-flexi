@@ -4,54 +4,76 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 )
+
+const hhMMFormat = "1504"
+
+var startTime time.Time
+var timeWorked time.Time
 
 func main() {
 	sc := bufio.NewScanner(os.Stdin)
 
-	isNew := true
+	initialized := false
 	fmt.Println("enter start time - format hh:mm")
 
-	var err error
-	var start time.Time
-	var end time.Time
 	for sc.Scan() {
 		in := sc.Text()
 
 		if in == "q" {
-			fmt.Println("goodbye")
-			os.Exit(0)
+			quit()
 		}
 
 		if in == "done" {
-			fmt.Println(end.Sub(start))
-			os.Exit(0)
+			finish(timeWorked, startTime)
 		}
 
-		if isNew {
-			start, err = time.Parse("15:04", in)
-			if err != nil {
-				panic(err)
-				os.Exit(1)
-			}
-			end = start
+		start, end := parseInput(in)
 
-			fmt.Printf("started: %v\n", start)
-			fmt.Printf("ended: %v\n", end)
-			isNew = false
-		} else {
-			timeAdded, err := time.Parse("15:04", in)
-			if err != nil {
-				panic(err)
-				os.Exit(1)
-			}
-
-			mins := timeAdded.Sub(start).Minutes()
-			fmt.Printf("mins added %f", mins)
-			end = end.Add(time.Minute * time.Duration(mins))
-			fmt.Println(end)
+		if !initialized {
+			startTime = start
+			timeWorked = start
+			initialized = true
 		}
 
+		incrementTotal(start, end)
 	}
+}
+
+func parseInput(input string) (time.Time, time.Time) {
+	times := strings.Split(input, ":")
+
+	fmt.Printf("times: %v\n", times)
+
+	startStr := strings.TrimSpace(times[0])
+	endStr := strings.TrimSpace(times[1])
+
+	return parseTime(startStr), parseTime(endStr)
+}
+
+func incrementTotal(start time.Time, end time.Time) {
+	diffMins := end.Sub(start).Minutes()
+	fmt.Printf("diffMins added %f\n", diffMins)
+	timeWorked = timeWorked.Add(time.Minute * time.Duration(diffMins))
+}
+
+func finish(end time.Time, start time.Time) {
+	fmt.Println(end.Sub(start))
+	quit()
+}
+
+func parseTime(val string) time.Time {
+	t, err := time.Parse(hhMMFormat, val)
+	if err != nil {
+		panic(err)
+		os.Exit(1)
+	}
+	return t
+}
+
+func quit() {
+	fmt.Println("goodbye")
+	os.Exit(0)
 }
